@@ -130,3 +130,7 @@ npm run preview  # serve the production build
 - Push notifications (Graph subscriptions) and PWA install
 - Snooze, swipe gestures on mobile, keyboard shortcuts
 - Dark mode
+
+## License
+
+MIT © 2026 Tristan Vouga — see [LICENSE](LICENSE).
