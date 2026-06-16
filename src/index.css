@@ -1,0 +1,85 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    @apply bg-paper-soft text-ink antialiased;
+    font-feature-settings: 'cv11', 'ss01';
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Quiet, thin scrollbars that match the minimal aesthetic */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(28, 27, 34, 0.12) transparent;
+  }
+  *::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  *::-webkit-scrollbar-thumb {
+    background-color: rgba(28, 27, 34, 0.12);
+    border-radius: 9999px;
+  }
+  *::-webkit-scrollbar-thumb:hover {
+    background-color: rgba(28, 27, 34, 0.22);
+  }
+}
+
+@layer utilities {
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  /* Render sanitized HTML email bodies with sensible defaults */
+  .email-html {
+    @apply text-[15px] leading-relaxed text-ink-soft;
+  }
+  .email-html a {
+    @apply text-accent underline underline-offset-2;
+  }
+  .email-html img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 0.5rem;
+  }
+  .email-html p {
+    margin: 0.5em 0;
+  }
+  .email-html ul,
+  .email-html ol {
+    margin: 0.5em 0;
+    padding-left: 1.4em;
+  }
+  .email-html ul {
+    list-style: disc;
+  }
+  .email-html ol {
+    list-style: decimal;
+  }
+
+  /* Placeholder for the contentEditable rich editor when empty */
+  .rich-editor:empty::before {
+    content: attr(data-placeholder);
+    @apply text-ink-faint;
+    pointer-events: none;
+  }
+  .email-html blockquote {
+    @apply border-l-2 border-paper-sunk pl-3 text-ink-muted;
+    margin: 0.5em 0;
+  }
+  .email-html table {
+    max-width: 100%;
+  }
+}
