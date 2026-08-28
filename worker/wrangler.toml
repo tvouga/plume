@@ -1,0 +1,29 @@
+name = "plume-agent"
+main = "src/index.ts"
+compatibility_date = "2026-08-01"
+compatibility_flags = ["nodejs_compat"]
+
+# The Notion Atlas is a metadata-only map of the workspace. Rebuilt nightly,
+# read on every triage — exactly the shape KV is good at.
+[[kv_namespaces]]
+binding = "ATLAS"
+id = "REPLACE_WITH_YOUR_KV_ID"
+
+# Rebuild the Atlas each night, before anyone opens the app.
+[triggers]
+crons = ["0 5 * * *"]
+
+[vars]
+# Comma-separated userPrincipalNames allowed to use this worker. Without this
+# the worker is an open proxy to your Anthropic key — do not leave it empty.
+ALLOWED_UPNS = ""
+# Origin allowed to call the worker, e.g. "http://localhost:5173".
+ALLOWED_ORIGIN = "http://localhost:5173"
+# Cost lever. Both default to Opus 5; set TRIAGE_MODEL="claude-haiku-4-5"
+# if you'd rather trade some accuracy on the cheap pass.
+TRIAGE_MODEL = "claude-opus-5"
+DEEPEN_MODEL = "claude-opus-5"
+
+# Secrets — set with `wrangler secret put <NAME>`, never in this file:
+#   ANTHROPIC_API_KEY
+#   NOTION_TOKEN

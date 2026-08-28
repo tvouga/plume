@@ -9,6 +9,8 @@ import {
   Archive as ArchiveIcon,
   Send as SendIcon,
   LogOut,
+  Sparkles,
+  Clock3,
 } from 'lucide-react'
 import { useAuth } from '../auth/AuthContext'
 import {
@@ -24,20 +26,27 @@ import { Avatar } from './Avatar'
 import { ConversationList } from './ConversationList'
 import { ThreadView } from './ThreadView'
 import { NewMessageModal } from './NewMessageModal'
+import { Brief } from './agent/Brief'
+import { Runway } from './agent/Runway'
 import type { ViewKey } from '../data/hooks'
 
 const VIEWS: { key: ViewKey; label: string; icon: typeof Inbox }[] = [
+  { key: 'brief', label: 'Brief', icon: Sparkles },
+  { key: 'runway', label: 'Runway', icon: Clock3 },
   { key: 'home', label: 'Home', icon: Home },
   { key: 'inbox', label: 'Inbox', icon: Inbox },
   { key: 'archive', label: 'Archive', icon: ArchiveIcon },
   { key: 'sentitems', label: 'Sent', icon: SendIcon },
 ]
 
+/** The two derived surfaces take the whole window; mail keeps the split view. */
+const AGENT_VIEWS: ViewKey[] = ['brief', 'runway']
+
 export function AppShell() {
   const { signOut } = useAuth()
   const { data: me } = useMe()
   const { data: photo } = useMyPhoto()
-  const [folder, setFolder] = useState<ViewKey>('home')
+  const [folder, setFolder] = useState<ViewKey>('brief')
   const [inboxTab, setInboxTab] = useState<'focused' | 'other'>('focused')
   const [search, setSearch] = useState('')
   const [selected, setSelected] = useState<Conversation | null>(null)
@@ -84,6 +93,43 @@ export function AppShell() {
   }
 
   const empty = !isLoading && displayed.length === 0
+
+  // The agent surfaces replace the split view entirely: they are derived
+  // pages, not another way to look at a folder.
+  if (AGENT_VIEWS.includes(folder)) {
+    return (
+      <div className="flex h-full flex-col overflow-hidden bg-paper-soft">
+        <ViewSwitcher
+          folder={folder}
+          onChange={(k) => {
+            setFolder(k)
+            setSelected(null)
+          }}
+          name={me?.displayName ?? 'Plume'}
+          email={myEmail}
+          photo={photo ?? undefined}
+          onSignOut={signOut}
+        />
+        <div className="min-h-0 flex-1 overflow-hidden bg-paper">
+          {selected ? (
+            <ThreadView
+              conversation={selected}
+              myEmail={myEmail}
+              onBack={() => setSelected(null)}
+              onArchive={handleArchive}
+            />
+          ) : folder === 'brief' ? (
+            <div className="h-full overflow-y-auto">
+              <Brief onOpenThread={setSelected} />
+            </div>
+          ) : (
+            <Runway onOpenThread={setSelected} />
+          )}
+        </div>
+        {composing && <NewMessageModal onClose={() => setComposing(false)} />}
+      </div>
+    )
+  }
 
   return (
     <div className="flex h-full overflow-hidden bg-paper-soft">
@@ -244,6 +290,73 @@ export function AppShell() {
       </main>
 
       {composing && <NewMessageModal onClose={() => setComposing(false)} />}
+    </div>
+  )
+}
+
+/** Slim top bar for the agent surfaces: identity on the left, views on the right. */
+function ViewSwitcher({
+  folder,
+  onChange,
+  name,
+  email,
+  photo,
+  onSignOut,
+}: {
+  folder: ViewKey
+  onChange: (k: ViewKey) => void
+  name: string
+  email: string
+  photo?: string
+  onSignOut: () => void
+}) {
+  const [menuOpen, setMenuOpen] = useState(false)
+  return (
+    <div className="relative flex shrink-0 items-center gap-3 border-b border-paper-sunk bg-paper px-4 py-2.5">
+      <button
+        onClick={() => setMenuOpen((v) => !v)}
+        className="rounded-full ring-2 ring-transparent transition hover:ring-paper-sunk"
+        aria-label="Account"
+      >
+        <Avatar name={name} seed={email} email={email} src={photo} size={32} />
+      </button>
+      <div className="hidden min-w-0 sm:block">
+        <p className="truncate text-[13px] font-semibold leading-tight text-ink">{name}</p>
+        <p className="truncate text-[11px] leading-tight text-ink-faint">{email}</p>
+      </div>
+
+      <div className="ml-auto flex gap-1 overflow-x-auto no-scrollbar">
+        {VIEWS.map(({ key, label, icon: Icon }) => (
+          <button
+            key={key}
+            onClick={() => onChange(key)}
+            className={`flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium transition ${
+              folder === key ? 'bg-ink text-white' : 'text-ink-muted hover:bg-paper-soft'
+            }`}
+          >
+            <Icon className="h-4 w-4" />
+            <span className="hidden sm:inline">{label}</span>
+          </button>
+        ))}
+      </div>
+
+      {menuOpen && (
+        <>
+          <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} />
+          <div className="absolute left-4 top-14 z-20 w-48 animate-pop-in rounded-xl bg-paper p-1 shadow-pop">
+            <button
+              onClick={() => {
+                setMenuOpen(false)
+                onSignOut()
+              }}
+              className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-ink-soft transition hover:bg-paper-soft"
+            >
+              <LogOut className="h-4 w-4" />
+              Sign out
+            </button>
+          </div>
+        </>
+      )}
     </div>
   )
 }

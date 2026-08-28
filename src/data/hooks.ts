@@ -30,7 +30,7 @@ export function useMyPhoto() {
   })
 }
 
-export type ViewKey = FolderKey | 'home'
+export type ViewKey = FolderKey | 'home' | 'brief' | 'runway'
 
 export function useConversations(
   view: ViewKey,
@@ -43,7 +43,7 @@ export function useConversations(
     queryKey: ['conversations', view, classification ?? null, trimmed],
     queryFn: () => {
       if (trimmed) return mail.search(trimmed)
-      if (view === 'home') return mail.listHome()
+      if (view === 'home' || view === 'brief' || view === 'runway') return mail.listHome()
       return mail.listConversations(view, 60, classification)
     },
     refetchInterval: trimmed ? false : REFETCH_MS,

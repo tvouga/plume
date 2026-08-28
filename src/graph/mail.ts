@@ -1,9 +1,13 @@
 import type { GraphClient } from './client'
+import { LEDGER_EXPAND, readLedger } from '../agent/ledger'
+import type { CalendarEvent, LedgerRecord } from '../agent/types'
 import type {
   Attachment,
   AttachmentKind,
   Conversation,
   GraphCollection,
+  GraphDateTime,
+  GraphEvent,
   GraphUser,
   Message,
   Recipient,
@@ -21,6 +25,9 @@ export type Classification = 'focused' | 'other'
 
 export function createMailApi(graph: GraphClient) {
   return {
+    /** Exposed so the agent layer can write the ledger back onto messages. */
+    graph,
+
     async getMe(): Promise<GraphUser> {
       return graph.get<GraphUser>(
         '/me?$select=id,displayName,mail,userPrincipalName',
@@ -110,6 +117,54 @@ export function createMailApi(graph: GraphClient) {
         (m) => (m.inferenceClassification ?? 'focused') === 'focused',
       )
       return rollUp([...focusedInbox, ...sent.value])
+    },
+
+    /**
+     * The feed the agent surfaces read: the whole inbox plus sent, each message
+     * carrying any triage verdict already stored on it. One round trip gets
+     * both the mail and the ledger, so a warm mailbox costs zero model calls.
+     *
+     * Unlike listHome this keeps "other" mail — the point of the Brief is that
+     * nothing is dropped before a verdict exists.
+     */
+    async listAgentFeed(
+      top = 80,
+    ): Promise<{ conversations: Conversation[]; ledger: Map<string, LedgerRecord> }> {
+      const q = `$select=${LIST_SELECT},categories&$expand=${LEDGER_EXPAND}&$orderby=receivedDateTime desc&$top=${top}`
+      const [inbox, sent] = await Promise.all([
+        graph.get<GraphCollection<Message>>(`/me/mailFolders/inbox/messages?${q}`),
+        graph.get<GraphCollection<Message>>(`/me/mailFolders/sentitems/messages?${q}`),
+      ])
+      const all = [...inbox.value, ...sent.value]
+
+      const ledger = new Map<string, LedgerRecord>()
+      for (const m of all) {
+        const rec = readLedger(m)
+        if (rec) ledger.set(m.id, rec)
+      }
+      return { conversations: rollUp(all), ledger }
+    },
+
+    /**
+     * Calendar events in a window — what the Runway tethers obligations to.
+     * Graph hands times back as a naive string plus a zone name, so we
+     * normalize to real ISO instants here rather than at every call site.
+     */
+    async listEvents(startISO: string, endISO: string): Promise<CalendarEvent[]> {
+      const data = await graph.get<GraphCollection<GraphEvent>>(
+        `/me/calendarView?startDateTime=${encodeURIComponent(startISO)}` +
+          `&endDateTime=${encodeURIComponent(endISO)}` +
+          `&$select=id,subject,start,end,isAllDay,organizer` +
+          `&$orderby=start/dateTime&$top=50`,
+      )
+      return data.value.map((e) => ({
+        id: e.id,
+        subject: e.subject?.trim() || '(no title)',
+        start: normalizeGraphTime(e.start),
+        end: normalizeGraphTime(e.end),
+        isAllDay: Boolean(e.isAllDay),
+        organizer: e.organizer?.emailAddress?.name,
+      }))
     },
 
     /** Every message in a single conversation, oldest first. */
@@ -295,6 +350,18 @@ function mapAttachment(
     sourceUrl: typeof a.sourceUrl === 'string' ? a.sourceUrl : undefined,
     date,
   }
+}
+
+/**
+ * Graph sends `{ dateTime: '2026-08-28T09:00:00.0000000', timeZone: 'UTC' }`
+ * — no offset on the string. Append Z for UTC; anything else we let the
+ * runtime interpret as local, which is the best available guess.
+ */
+function normalizeGraphTime(t: GraphDateTime): string {
+  const raw = t.dateTime
+  if (/(Z|[+-]\d{2}:\d{2})$/.test(raw)) return new Date(raw).toISOString()
+  const zone = (t.timeZone || '').toUpperCase()
+  return new Date(zone === 'UTC' ? `${raw}Z` : raw).toISOString()
 }
 
 function rollUp(messages: Message[]): Conversation[] {
