@@ -14,8 +14,9 @@ export const isConfigured = Boolean(clientId)
 /**
  * Microsoft Graph permissions Plume needs. These are *delegated* scopes:
  * the app only ever acts as the signed-in user, never more.
- *   - Mail.ReadWrite : read mail, mark read, move/archive
+ *   - Mail.ReadWrite : read mail, mark read, move/archive, store the ledger
  *   - Mail.Send      : send and reply
+ *   - Calendars.Read : the Runway tethers obligations to real meetings
  *   - User.Read      : the signed-in user's name + photo
  *   - offline_access : stay signed in without re-prompting
  */
@@ -23,6 +24,7 @@ export const GRAPH_SCOPES = [
   'User.Read',
   'Mail.ReadWrite',
   'Mail.Send',
+  'Calendars.Read',
   'offline_access',
 ]
 

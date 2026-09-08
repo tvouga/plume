@@ -21,6 +21,19 @@ export default {
           soft: '#eef0ff',
           ink: '#3730a3',
         },
+        // Semantic stakes — separate from the accent, used by the agent
+        // surfaces to encode "what happens if you ignore this".
+        stake: {
+          crit: '#b3123c',
+          'crit-soft': '#fdeaef',
+          'crit-line': '#f4d3dc',
+          high: '#a15c07',
+          'high-soft': '#fdf3e3',
+          'high-line': '#f0e0c4',
+          calm: '#0d7268',
+          'calm-soft': '#e3f3f1',
+          'calm-line': '#cfe8e4',
+        },
         // Soft, light blue for the user's own message bubbles — readable with
         // dark text (no white text needed).
         mine: {

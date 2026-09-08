@@ -33,6 +33,25 @@ export interface Message {
   inferenceClassification?: 'focused' | 'other'
   flag?: { flagStatus?: 'notFlagged' | 'flagged' | 'complete' }
   webLink?: string
+  /** Outlook categories — the human-visible half of Plume's ledger. */
+  categories?: string[]
+  /** Present only when a query $expands them (see agent/ledger.ts). */
+  singleValueExtendedProperties?: { id: string; value: string }[]
+}
+
+/** Graph returns event times as a local-ish string plus a zone name. */
+export interface GraphDateTime {
+  dateTime: string
+  timeZone: string
+}
+
+export interface GraphEvent {
+  id: string
+  subject: string | null
+  start: GraphDateTime
+  end: GraphDateTime
+  isAllDay?: boolean
+  organizer?: Recipient
 }
 
 export interface GraphUser {

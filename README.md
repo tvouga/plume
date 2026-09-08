@@ -5,11 +5,43 @@ No folders-first clutter, no ribbon — your mail is a stream of conversations,
 and replying feels like sending a chat message.
 
 Plume talks **directly to Microsoft** from your browser. Your mail never passes
-through any third-party server — there's no backend.
+through any third-party server.
+
+On top of the mailbox sits an optional **agent layer**: two derived surfaces
+that read every message against your Notion workspace and tell you what
+actually needs you today.
 
 ---
 
 ## What it does
+
+### The agent surfaces
+
+- **Brief** — obligations, not messages. Each card's headline is *what someone
+  needs from you*; the email is evidence underneath it. Grouped into what needs
+  you, what you're owed, what's moving per Notion project, and what was handled
+  without you.
+- **Runway** — today as a strip of time. Things you owe sit above the line at
+  the hour they come due, tethered to the meeting they'd wreck; things you're
+  owed sit below, as bars that grow the longer they go unanswered. Ends with a
+  plain forecast: *if you do nothing, here's what breaks.*
+- **A ledger of promises, both directions** — what you promised, and what you're
+  owed. The second one is the ball that actually drops: you replied, they went
+  quiet six days ago, and no inbox anywhere will tell you that.
+- **Nothing sends itself.** Drafts are staged; one tap to send, never zero.
+
+Both run without any AI configured — Plume falls back to local heuristics, so
+the surfaces work on day one, just more bluntly and with no Notion context.
+See [worker/README.md](worker/README.md) to turn on the real thing.
+
+```bash
+npm run dev      # then open http://localhost:5173/?demo
+```
+
+`/?demo` renders both surfaces against fixtures — no tenant, no Azure app, no
+worker. Useful for working on the layouts.
+
+### The mailbox
 
 - **Inbox as conversations** — threads roll up like chats, newest first.
 - **Chat-style threads** — messages as bubbles, your replies on the right.
@@ -96,9 +128,18 @@ All **delegated** — Plume only ever acts as you, never more:
 | scope           | why                                            |
 | --------------- | ---------------------------------------------- |
 | `User.Read`     | your name and profile photo                    |
-| `Mail.ReadWrite`| read mail, mark read, archive                  |
+| `Mail.ReadWrite`| read mail, mark read, archive, store the ledger|
 | `Mail.Send`     | send and reply                                 |
+| `Calendars.Read`| the Runway tethers deadlines to real meetings  |
 | `offline_access`| stay signed in without re-prompting            |
+
+### Where the ledger lives
+
+Triage verdicts, snoozes, extracted commitments and your "not important" calls
+are stored **on the Outlook messages themselves**, as a named MAPI property
+plus ordinary categories. That means they sync across your devices through the
+Graph token you already hold, survive a reinstall, and show up in real Outlook
+— and Plume needs no database of its own.
 
 ---
 
@@ -110,11 +151,22 @@ TanStack Query · Tailwind CSS · DOMPurify.
 ```
 src/
   auth/        Microsoft sign-in (MSAL config + React context)
-  graph/       Microsoft Graph client, mail API, types
+  graph/       Microsoft Graph client, mail API, calendar, types
   data/        TanStack Query hooks bound to the signed-in user
-  components/   UI (login, list, chat-style thread, composer)
+  agent/       ledger, triage transport, selectors, heuristic fallback
+  components/  UI (login, list, chat-style thread, composer)
+    agent/     Brief, Runway, the shared obligation card
+  dev/         the /?demo fixtures
   lib/         formatting + HTML sanitizing helpers
+worker/        Cloudflare worker: Notion + Anthropic, and the two secrets
 ```
+
+### Why a worker at all
+
+Notion's API sends no CORS headers and has no PKCE public-client flow, so a
+browser physically cannot reach it — that, and keeping the Anthropic key out of
+the bundle, is the worker's entire job. Mail keeps going browser → Microsoft
+directly. Details in [worker/README.md](worker/README.md).
 
 ## Scripts
 
@@ -126,6 +178,11 @@ npm run preview  # serve the production build
 
 ## Roadmap ideas
 
+- The deep pass wired to card expansion (the worker endpoint exists; the UI
+  still shows the triage draft)
+- An ask bar across mail + Notion
+- Learning from "not important" — the verdicts are stored, nothing reads them
+  back into the prompt yet
 - Attachments (view + send)
 - Push notifications (Graph subscriptions) and PWA install
 - Snooze, swipe gestures on mobile, keyboard shortcuts
