@@ -82,10 +82,10 @@ const VERDICT_SCHEMA = {
           category: { type: 'string', enum: ['action', 'reply', 'fyi', 'noise'] },
           needsReply: { type: 'boolean' },
           ask: { type: 'string' },
-          dueAt: { type: ['string', 'null'] },
-          gates: { type: ['string', 'null'] },
-          projectId: { type: ['string', 'null'] },
-          draft: { type: ['string', 'null'] },
+          dueAt: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+          gates: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+          projectId: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+          draft: { anyOf: [{ type: 'string' }, { type: 'null' }] },
           commitments: {
             type: 'array',
             items: {
@@ -96,8 +96,8 @@ const VERDICT_SCHEMA = {
                 direction: { type: 'string', enum: ['you-owe', 'owed-to-you'] },
                 what: { type: 'string' },
                 counterparty: { type: 'string' },
-                dueAt: { type: ['string', 'null'] },
-                quote: { type: ['string', 'null'] },
+                dueAt: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+                quote: { anyOf: [{ type: 'string' }, { type: 'null' }] },
               },
             },
           },
@@ -150,38 +150,43 @@ export async function triage(
     )
     .join('\n---\n')
 
-  const res = await client.messages.create({
-    model: env.TRIAGE_MODEL || 'claude-opus-5',
+  // Structured outputs rather than a forced tool call: forced tool use is a
+  // 400 on Opus 5.5 and newer, and this call only ever existed to get JSON.
+  const res = await client.beta.messages.create({
+    model: env.TRIAGE_MODEL || 'claude-opus-5-5',
     max_tokens: 16000,
-    // Classification is the cheap pass; low effort is the right lever here.
-    output_config: { effort: 'low' },
+    // On a policy decline, re-run on a fallback model inside the same call.
+    betas: ['server-side-fallback-2026-07-01'],
+    fallbacks: 'default',
+    output_config: {
+      // Classification is the cheap pass; low effort is the right lever here.
+      effort: 'low',
+      format: { type: 'json_schema', schema: VERDICT_SCHEMA as unknown as Record<string, unknown> },
+    },
     system: [
       { type: 'text', text: SYSTEM },
       // The Notion map is identical across every call — cache it.
       { type: 'text', text: atlasBlock(atlas), cache_control: { type: 'ephemeral' } },
     ],
-    tools: [
-      {
-        name: 'record_triage',
-        description: 'Record one verdict per conversation, in the order given.',
-        strict: true,
-        input_schema: VERDICT_SCHEMA as unknown as Anthropic.Tool.InputSchema,
-      },
-    ],
-    tool_choice: { type: 'tool', name: 'record_triage' },
     messages: [
       {
         role: 'user',
         content:
           `The reader is ${myEmail}. Current time is ${new Date().toISOString()}.\n` +
-          `Triage all ${inputs.length} conversations below.\n\n${digest}`,
+          `Triage all ${inputs.length} conversations below, one verdict each.\n\n${digest}`,
       },
     ],
   })
 
-  const call = res.content.find((b) => b.type === 'tool_use')
-  if (!call || call.type !== 'tool_use') return []
-  const { verdicts } = call.input as { verdicts: Verdict[] }
+  if (res.stop_reason === 'refusal') {
+    throw new Error(`Triage declined: ${res.stop_details?.explanation ?? 'no reason given'}`)
+  }
+  if (res.stop_reason === 'max_tokens') {
+    throw new Error('Triage output was cut off — send fewer conversations per call')
+  }
+  const text = res.content.find((b) => b.type === 'text')
+  if (!text || text.type !== 'text') return []
+  const { verdicts } = JSON.parse(text.text) as { verdicts: Verdict[] }
 
   const byId = new Map(atlas?.entries.map((e) => [e.id, e]) ?? [])
   const now = new Date().toISOString()

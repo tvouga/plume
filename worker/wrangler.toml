@@ -23,10 +23,10 @@ crons = ["0 5 * * *"]
 [vars]
 # Origin allowed to call the worker, e.g. "http://localhost:5173".
 ALLOWED_ORIGIN = "https://plume-765.pages.dev"
-# Cost lever. Both default to Opus 5; set TRIAGE_MODEL="claude-haiku-4-5"
-# if you'd rather trade some accuracy on the cheap pass.
-TRIAGE_MODEL = "claude-opus-5"
-DEEPEN_MODEL = "claude-opus-5"
+# Cost lever. Both default to Opus 5.5. TRIAGE_MODEL="claude-haiku-5-5" is a
+# far cheaper option for the classification pass, at some cost in judgment.
+TRIAGE_MODEL = "claude-opus-5-5"
+DEEPEN_MODEL = "claude-opus-5-5"
 
 # Secrets — set in the dashboard (Settings → Variables and Secrets) or with
 # `wrangler secret put <NAME>`, never in this file:
