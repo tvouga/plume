@@ -37,6 +37,12 @@ export interface LedgerRecord {
   v: 1
   /** Changes when the conversation does, so we know to re-triage. */
   hash: string
+  /**
+   * Who produced the verdict. Rule-based verdicts are a stopgap: once a model
+   * is reachable they count as stale, so they get replaced rather than cached
+   * forever. Records written before this field existed read as heuristic.
+   */
+  source?: 'model' | 'heuristic'
   triagedAt: string
   /** 0-100. Ranking within a surface. */
   importance: number

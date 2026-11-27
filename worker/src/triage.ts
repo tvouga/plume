@@ -192,7 +192,7 @@ export async function triage(
     const v = verdicts.find((x) => x.messageId === input.messageId)
     if (!v) {
       return {
-        v: 1, hash: input.hash, triagedAt: now, importance: 20, stakes: 'low',
+        v: 1, hash: input.hash, source: 'model', triagedAt: now, importance: 20, stakes: 'low',
         category: 'fyi', needsReply: false, ask: input.subject, commitments: [],
       }
     }
@@ -201,6 +201,7 @@ export async function triage(
     return {
       v: 1,
       hash: input.hash,
+      source: 'model',
       triagedAt: now,
       importance: Math.max(0, Math.min(100, v.importance)),
       stakes: v.stakes,
