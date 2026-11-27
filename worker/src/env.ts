@@ -1,13 +1,17 @@
 export interface Env {
   /**
-   * Optional. Bind a KV namespace to keep the Notion Atlas warm between
-   * isolates and to make the nightly cron worth running. Without it the
-   * worker still works — it just rebuilds the map on a cold start.
+   * Per-user Notion connections and their Atlases. Declared in wrangler.toml
+   * without an id: Wrangler provisions it on the first deploy.
    */
-  ATLAS?: KVNamespace
+  ATLAS: KVNamespace
   ANTHROPIC_API_KEY: string
-  NOTION_TOKEN: string
-  ALLOWED_UPNS: string
+  /** From the Notion OAuth connection's settings page. */
+  NOTION_CLIENT_ID: string
+  NOTION_CLIENT_SECRET: string
+  /** Any long random string. Signs the OAuth state so a callback can't be forged. */
+  STATE_SECRET: string
+  /** Set in the dashboard. Absent means nobody is allowed in. */
+  ALLOWED_UPNS?: string
   ALLOWED_ORIGIN: string
   TRIAGE_MODEL: string
   DEEPEN_MODEL: string

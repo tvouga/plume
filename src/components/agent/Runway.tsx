@@ -5,7 +5,7 @@ import { agentConfigured } from '../../agent/transport'
 import { gatingEvent, isHidden, needsYou, packLanes, waitingOn } from '../../agent/select'
 import type { CalendarEvent, Obligation } from '../../agent/types'
 import { ObligationCard } from './ObligationCard'
-import { SetupHint } from './shared'
+import { NotionConnection, SetupHint } from './shared'
 import type { Conversation } from '../../graph/types'
 
 const CARD_W = 210
@@ -162,11 +162,10 @@ export function Runway({ onOpenThread }: { onOpenThread: (c: Conversation) => vo
       </header>
 
       <div className="min-h-0 flex-1 overflow-auto">
-        {!agentConfigured && (
-          <div className="px-6 pt-5">
-            <SetupHint />
-          </div>
-        )}
+        <div className="px-6 pt-5 empty:hidden">
+          {!agentConfigured && <SetupHint />}
+          <NotionConnection />
+        </div>
         {noCalendar && (
           <div className="mx-6 mt-5 flex items-center gap-2 rounded-xl border border-stake-high-line bg-stake-high-soft px-4 py-2.5 text-[13px] text-stake-high">
             <CalendarX2 className="h-4 w-4 shrink-0" />

@@ -12,7 +12,16 @@ export interface AgentTransport {
   triage(inputs: TriageInput[], token: string): Promise<LedgerRecord[]>
   deepen(input: DeepenInput, token: string): Promise<Partial<LedgerRecord>>
   atlas(token: string): Promise<Atlas | null>
+  /** Per-user Notion connection. Null when there is no worker to hold one. */
+  notionStatus(token: string): Promise<NotionStatus | null>
+  /** Where to send the browser for Notion's consent screen. */
+  notionConnectUrl(token: string): Promise<string>
+  notionDisconnect(token: string): Promise<void>
 }
+
+export type NotionStatus =
+  | { connected: false }
+  | { connected: true; workspaceName: string | null; notionUser: string | null; connectedAt: string }
 
 export interface DeepenInput {
   messageId: string
@@ -61,6 +70,23 @@ class WorkerTransport implements AgentTransport {
     if (!res.ok) return null
     return (await res.json()) as Atlas
   }
+
+  async notionStatus(token: string): Promise<NotionStatus> {
+    const res = await fetch(`${this.base}/api/notion/status`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    if (!res.ok) throw new Error(`notion status failed (${res.status})`)
+    return (await res.json()) as NotionStatus
+  }
+
+  async notionConnectUrl(token: string): Promise<string> {
+    const { url } = await this.post<{ url: string }>('/api/notion/connect', {}, token)
+    return url
+  }
+
+  async notionDisconnect(token: string): Promise<void> {
+    await this.post('/api/notion/disconnect', {}, token)
+  }
 }
 
 /**
@@ -79,6 +105,13 @@ class HeuristicTransport implements AgentTransport {
   async atlas() {
     return null
   }
+  async notionStatus() {
+    return null
+  }
+  async notionConnectUrl(): Promise<string> {
+    throw new Error('Notion needs the worker — set VITE_AGENT_URL first')
+  }
+  async notionDisconnect() {}
 }
 
 export const agentTransport: AgentTransport = BASE

@@ -5,7 +5,7 @@ import { agentConfigured } from '../../agent/transport'
 import { byProject, handled, needsYou, waitingOn } from '../../agent/select'
 import type { Obligation } from '../../agent/types'
 import { ObligationCard } from './ObligationCard'
-import { SectionHead, SetupHint } from './shared'
+import { NotionConnection, SectionHead, SetupHint } from './shared'
 import { Avatar } from '../Avatar'
 import type { Conversation } from '../../graph/types'
 import { relativeTime } from '../../lib/format'
@@ -61,6 +61,7 @@ export function Brief({ onOpenThread }: { onOpenThread: (c: Conversation) => voi
       </header>
 
       {!agentConfigured && <SetupHint />}
+      <NotionConnection />
 
       {groups.needs.length > 0 && (
         <section className="mb-7">

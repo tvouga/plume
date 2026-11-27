@@ -1,27 +1,6 @@
 import type { Env } from './env'
 
-const NOTION = 'https://api.notion.com/v1'
-const VERSION = '2022-06-28'
-
-/**
- * Notion sends no CORS headers and doesn't answer a preflight, so every call
- * has to originate server-side. This is the only reason the worker exists.
- */
-async function notion<T>(env: Env, path: string, init: RequestInit = {}): Promise<T> {
-  const res = await fetch(`${NOTION}${path}`, {
-    ...init,
-    headers: {
-      Authorization: `Bearer ${env.NOTION_TOKEN}`,
-      'Notion-Version': VERSION,
-      'Content-Type': 'application/json',
-      ...(init.headers ?? {}),
-    },
-  })
-  if (!res.ok) {
-    throw new Error(`Notion ${path} ${res.status}: ${(await res.text()).slice(0, 300)}`)
-  }
-  return (await res.json()) as T
-}
+import type { NotionSession } from './notionAuth'
 
 export interface AtlasEntry {
   id: string
@@ -101,7 +80,7 @@ function statusOf(obj: NotionValue): string | undefined {
  * only — never page bodies. A large workspace lands in a few hundred KB,
  * which fits in one prompt-cached block.
  */
-export async function buildAtlas(env: Env): Promise<Atlas> {
+export async function buildAtlas(session: NotionSession): Promise<Atlas> {
   const entries: AtlasEntry[] = []
   let cursor: string | undefined
   // Bounded so a huge workspace can't run the cron past its wall clock.
@@ -112,11 +91,11 @@ export async function buildAtlas(env: Env): Promise<Atlas> {
     }
     if (cursor) body.start_cursor = cursor
 
-    const data = await notion<{
+    const data = await session.call<{
       results: NotionValue[]
       next_cursor: string | null
       has_more: boolean
-    }>(env, '/search', { method: 'POST', body: JSON.stringify(body) })
+    }>('/search', { method: 'POST', body: JSON.stringify(body) })
 
     for (const obj of data.results) {
       const { emails, people } = contactsOf(obj)
@@ -139,47 +118,49 @@ export async function buildAtlas(env: Env): Promise<Atlas> {
   return { fetchedAt: new Date().toISOString(), entries }
 }
 
-const ATLAS_KEY = 'atlas:v1'
-
 /**
- * KV is optional, so that deploying the worker needs no committed config.
- * Without it we keep the Atlas in the isolate, which Cloudflare reuses across
- * requests — so in practice one crawl per cold start rather than one per call.
+ * The Atlas is per user: it is built from that person's Notion token, so it
+ * only ever holds pages they can see. Keyed by their Microsoft id, never shared.
  */
-let memo: Atlas | null = null
+const atlasKey = (userId: string) => `atlas:v1:${userId}`
+const memo = new Map<string, Atlas>()
 
 function fresh(atlas: Atlas, maxAgeMs: number): boolean {
   return Date.now() - new Date(atlas.fetchedAt).getTime() < maxAgeMs
 }
 
-async function store(env: Env, atlas: Atlas): Promise<void> {
-  memo = atlas
-  await env.ATLAS?.put(ATLAS_KEY, JSON.stringify(atlas))
+async function store(env: Env, userId: string, atlas: Atlas): Promise<void> {
+  memo.set(userId, atlas)
+  await env.ATLAS.put(atlasKey(userId), JSON.stringify(atlas))
 }
 
-export async function getAtlas(env: Env, maxAgeMs = 24 * 3_600_000): Promise<Atlas> {
-  if (memo && fresh(memo, maxAgeMs)) return memo
+export async function getAtlas(env: Env, session: NotionSession, maxAgeMs = 24 * 3_600_000): Promise<Atlas> {
+  const hit = memo.get(session.userId)
+  if (hit && fresh(hit, maxAgeMs)) return hit
 
-  const cached = env.ATLAS ? await env.ATLAS.get<Atlas>(ATLAS_KEY, 'json') : null
+  const cached = await env.ATLAS.get<Atlas>(atlasKey(session.userId), 'json')
   if (cached && fresh(cached, maxAgeMs)) {
-    memo = cached
+    memo.set(session.userId, cached)
     return cached
   }
-
-  const built = await buildAtlas(env)
-  await store(env, built)
+  const built = await buildAtlas(session)
+  await store(env, session.userId, built)
   return built
 }
 
-export async function refreshAtlas(env: Env): Promise<Atlas> {
-  const built = await buildAtlas(env)
-  await store(env, built)
+export async function refreshAtlas(env: Env, session: NotionSession): Promise<Atlas> {
+  const built = await buildAtlas(session)
+  await store(env, session.userId, built)
   return built
+}
+
+export function forgetAtlas(userId: string): void {
+  memo.delete(userId)
 }
 
 /** Tool surface handed to the model during the deep pass. Read-only, by design. */
-export async function searchNotion(env: Env, query: string): Promise<string> {
-  const data = await notion<{ results: NotionValue[] }>(env, '/search', {
+export async function searchNotion(session: NotionSession, query: string): Promise<string> {
+  const data = await session.call<{ results: NotionValue[] }>('/search', {
     method: 'POST',
     body: JSON.stringify({ query, page_size: 8 }),
   })
@@ -189,10 +170,10 @@ export async function searchNotion(env: Env, query: string): Promise<string> {
 }
 
 /** A page's text, flattened. Blocks only, one level deep — enough for context. */
-export async function fetchNotionPage(env: Env, pageId: string): Promise<string> {
+export async function fetchNotionPage(session: NotionSession, pageId: string): Promise<string> {
   const [page, blocks] = await Promise.all([
-    notion<NotionValue>(env, `/pages/${pageId}`),
-    notion<{ results: NotionValue[] }>(env, `/blocks/${pageId}/children?page_size=60`),
+    session.call<NotionValue>(`/pages/${pageId}`),
+    session.call<{ results: NotionValue[] }>(`/blocks/${pageId}/children?page_size=60`),
   ])
   const lines: string[] = [`# ${titleOf(page)}`, String(page.url ?? '')]
   for (const b of blocks.results) {

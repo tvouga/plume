@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk'
 import type { Env } from './env'
 import { fetchNotionPage, searchNotion, type Atlas } from './notion'
+import type { NotionSession } from './notionAuth'
 
 export interface DeepenInput {
   messageId: string
@@ -80,7 +81,12 @@ const TOOLS: Anthropic.Tool[] = [
  * let the model pull the two Notion pages it actually needs, then record a
  * grounded draft. Read-only — nothing here can write to Notion.
  */
-export async function deepen(env: Env, input: DeepenInput, atlas: Atlas | null) {
+export async function deepen(
+  env: Env,
+  input: DeepenInput,
+  atlas: Atlas | null,
+  session: NotionSession | null,
+) {
   const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY })
 
   const hint = atlas
@@ -149,11 +155,12 @@ export async function deepen(env: Env, input: DeepenInput, atlas: Atlas | null) 
       if (block.type !== 'tool_use') continue
       try {
         const args = block.input as { query?: string; pageId?: string }
-        const content =
-          block.name === 'notion_search'
-            ? await searchNotion(env, args.query ?? '')
+        const content = !session
+          ? 'Notion is not connected for this user. Draft from the thread alone.'
+          : block.name === 'notion_search'
+            ? await searchNotion(session, args.query ?? '')
             : block.name === 'notion_fetch'
-              ? await fetchNotionPage(env, args.pageId ?? '')
+              ? await fetchNotionPage(session, args.pageId ?? '')
               : `Unknown tool ${block.name}`
         results.push({ type: 'tool_result', tool_use_id: block.id, content })
       } catch (err) {

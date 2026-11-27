@@ -3,22 +3,24 @@ main = "src/index.ts"
 compatibility_date = "2026-08-01"
 compatibility_flags = ["nodejs_compat"]
 
-# Optional. The Notion Atlas is a metadata-only map of the workspace; without
-# KV the worker rebuilds it on a cold start, which is fine for one mailbox.
-# To make it persistent: create a KV namespace, then uncomment and paste its id.
-# [[kv_namespaces]]
-# binding = "ATLAS"
-# id = "<your-kv-namespace-id>"
+# Keep variables set in the dashboard across deploys. Without this, every Git
+# push would reset them to whatever is (or isn't) in [vars] below.
+keep_vars = true
 
-# The nightly rebuild only earns its keep once KV is bound — without it the
-# result has nowhere to live past the isolate. Uncomment alongside the binding.
-# [triggers]
-# crons = ["0 5 * * *"]
+# Per-user Notion connections and Atlases. No id on purpose: Wrangler
+# provisions the namespace on the first deploy and keeps finding it after.
+[[kv_namespaces]]
+binding = "ATLAS"
+
+# Rebuild each connected user's Notion map overnight, before they open the app.
+[triggers]
+crons = ["0 5 * * *"]
+
+# ALLOWED_UPNS is set in the dashboard, not here: it names real people, and a
+# value in this file would overwrite the dashboard's on every deploy. Until it
+# is set, the worker refuses every request.
 
 [vars]
-# Comma-separated userPrincipalNames allowed to use this worker. Without this
-# the worker is an open proxy to your Anthropic key — do not leave it empty.
-ALLOWED_UPNS = ""
 # Origin allowed to call the worker, e.g. "http://localhost:5173".
 ALLOWED_ORIGIN = "https://plume-765.pages.dev"
 # Cost lever. Both default to Opus 5; set TRIAGE_MODEL="claude-haiku-4-5"
@@ -26,6 +28,9 @@ ALLOWED_ORIGIN = "https://plume-765.pages.dev"
 TRIAGE_MODEL = "claude-opus-5"
 DEEPEN_MODEL = "claude-opus-5"
 
-# Secrets — set with `wrangler secret put <NAME>`, never in this file:
+# Secrets — set in the dashboard (Settings → Variables and Secrets) or with
+# `wrangler secret put <NAME>`, never in this file:
 #   ANTHROPIC_API_KEY
-#   NOTION_TOKEN
+#   NOTION_CLIENT_ID       from the Notion OAuth connection
+#   NOTION_CLIENT_SECRET   from the Notion OAuth connection
+#   STATE_SECRET           any long random string

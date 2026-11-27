@@ -199,3 +199,35 @@ export function useUpdateRecord() {
     },
   })
 }
+
+/** Whether this user has connected their own Notion. Null without a worker. */
+export function useNotionStatus() {
+  const { getToken } = useAuth()
+  return useQuery({
+    queryKey: ['agent', 'notion'],
+    queryFn: async () => agentTransport.notionStatus(await getToken()),
+    staleTime: 5 * 60_000,
+    retry: false,
+  })
+}
+
+/** Send the browser to Notion's consent screen. It comes back via the worker. */
+export function useConnectNotion() {
+  const { getToken } = useAuth()
+  return useMutation({
+    mutationFn: async () => {
+      window.location.assign(await agentTransport.notionConnectUrl(await getToken()))
+    },
+  })
+}
+
+export function useDisconnectNotion() {
+  const { getToken } = useAuth()
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async () => agentTransport.notionDisconnect(await getToken()),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['agent'] })
+    },
+  })
+}
