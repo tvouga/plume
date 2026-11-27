@@ -84,9 +84,12 @@ export function useAgentFeed() {
       const { conversations, ledger } = await mail.listAgentFeed()
 
       // Only conversations whose verdict is missing or stale cost a model call.
+      // A rule-based verdict is stale the moment a model is reachable.
+      const upgrading = agentTransport.kind === 'worker'
       const stale = conversations.filter((c) => {
         const rec = ledger.get(c.latest.id)
         if (!rec) return true
+        if (upgrading && rec.source !== 'model') return true
         return rec.hash !== hashOf({
           id: c.latest.id,
           count: c.count,
@@ -101,9 +104,16 @@ export function useAgentFeed() {
           const token = await getToken()
           const records = await agentTransport.triage(inputs, token)
           const written: { id: string; record: LedgerRecord }[] = []
-          records.forEach((rec, i) => {
+          records.forEach((fresh, i) => {
             const conv = batch[i]
-            if (!conv || !rec) return
+            if (!conv || !fresh) return
+            // When only the verdict's source changed, the thread didn't: keep
+            // what the user already decided about it.
+            const prior = ledger.get(conv.latest.id)
+            const rec =
+              prior && prior.hash === fresh.hash
+                ? { ...fresh, dismissed: prior.dismissed, snoozeUntil: prior.snoozeUntil }
+                : fresh
             ledger.set(conv.latest.id, rec)
             written.push({ id: conv.latest.id, record: rec })
           })

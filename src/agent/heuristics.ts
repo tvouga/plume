@@ -136,6 +136,7 @@ export function heuristicTriage(input: TriageInput, now = new Date()): LedgerRec
   return {
     v: 1,
     hash: input.hash,
+    source: 'heuristic',
     triagedAt: now.toISOString(),
     importance,
     stakes: overdue && importance >= 50 ? 'critical' : importance >= 60 ? 'high' : importance >= 35 ? 'normal' : 'low',
