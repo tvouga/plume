@@ -28,6 +28,10 @@ their side of the screen.
 Rules that matter more than anything else:
 - "ask" is a sentence about what the SENDER needs FROM THE READER, with the
   deadline in it if there is one. Never restate the subject line.
+- If the reader sent the last message, nothing is waiting on the reader: the
+  category is never "action" or "reply" and needsReply is false. Any promise
+  they made in it goes in commitments as "you-owe" — that is where it belongs,
+  not in the ask.
 - Only mark needsReply when a specific human is actually blocked on a response.
   Newsletters, receipts, CI notifications, calendar accepts and cold outreach
   are category "noise" and must never be marked needsReply.
@@ -203,6 +207,12 @@ export async function triage(
     }
     const project = v.projectId ? byId.get(v.projectId) : undefined
     const src = inputById.get(v.messageId)
+    // Who sent the last message is a fact, not a judgment — don't leave it to
+    // the model. If it was the reader, the thread can't be waiting on them.
+    if (input.lastFromMe) {
+      v.needsReply = false
+      if (v.category === 'action' || v.category === 'reply') v.category = 'fyi'
+    }
     return {
       v: 1,
       hash: input.hash,

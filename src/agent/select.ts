@@ -20,6 +20,9 @@ export function isHidden(o: Obligation, now: Date): boolean {
 export function needsYou(obligations: Obligation[], now: Date): Obligation[] {
   return obligations
     .filter((o) => !isHidden(o, now))
+    // You sent the last message: the ball is in their court. A promise you
+    // made there is a commitment, not something waiting on your inbox.
+    .filter((o) => !o.lastFromMe)
     .filter((o) => o.record.category === 'action' || o.record.category === 'reply')
     .sort((a, b) => {
       // A real deadline always outranks a high score without one.

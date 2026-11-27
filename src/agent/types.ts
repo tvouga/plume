@@ -126,6 +126,8 @@ export interface Obligation {
   conversationId: string
   /** The verdict shown is a stopgap and a model verdict is on its way. */
   pending?: boolean
+  /** You sent the latest message — nobody is waiting on a reply from you. */
+  lastFromMe?: boolean
   messageId: string
   record: LedgerRecord
   subject: string

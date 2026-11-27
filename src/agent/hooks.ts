@@ -125,6 +125,7 @@ export function useAgentFeed() {
           messageId: c.latest.id,
           record,
           pending: needsModel(stored, input.hash),
+          lastFromMe: input.lastFromMe,
           subject: c.latest.subject ?? '',
           from: displayName(sender),
           fromEmail: sender?.emailAddress?.address ?? '',
