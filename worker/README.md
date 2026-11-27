@@ -22,49 +22,54 @@ message metadata needed for triage, and it talks to Notion and Anthropic.
 
 ## Setup
 
-No command line needed. In the Cloudflare dashboard:
+No command line needed — everything is in two dashboards.
 
-1. **Workers & Pages → Create → Worker → Connect to Git**, pick this repo and
-   set the **root directory** to `worker`. Deploy.
-2. **Settings → Variables and Secrets**, add:
+**1. Deploy the worker.** Cloudflare → Workers & Pages → Create → Worker →
+Connect to Git → this repo, **root directory `worker`**. Its KV namespace is
+created automatically on this first deploy. Note the worker's URL.
 
-   | | name | value |
-   | --- | --- | --- |
-   | Secret | `ANTHROPIC_API_KEY` | your Anthropic key |
-   | Secret | `NOTION_TOKEN` | the `ntn_…` internal integration token |
-   | Text | `ALLOWED_UPNS` | your work email |
-   | Text | `ALLOWED_ORIGIN` | where Plume is served, e.g. `https://plume-765.pages.dev` |
+**2. Create the Notion connection.** [notion.so/profile/integrations](https://www.notion.so/profile/integrations)
+→ New connection → **OAuth**.
+- Installable in: your workspace only.
+- Redirect URI: `<worker URL>/api/notion/callback`
 
-3. Copy the worker's URL into the Pages project as `VITE_AGENT_URL`, then
-   redeploy Pages so the new value is baked into the bundle.
+Copy its client ID and client secret.
 
-`ALLOWED_UPNS` is not optional — **the worker refuses to serve any request
-while it is empty**, because an unauthenticated proxy to your Anthropic key is
-a bill waiting to happen.
+**3. Set the worker's variables** (Settings → Variables and Secrets):
 
-KV is optional. Without it the worker rebuilds the Notion map on a cold start,
-which is fine for a single mailbox. To make it persistent, create a KV
-namespace and uncomment the `kv_namespaces` block (and the nightly cron
-alongside it) in `wrangler.toml` with its id.
+| | name | value |
+| --- | --- | --- |
+| Secret | `ANTHROPIC_API_KEY` | your Anthropic key |
+| Secret | `NOTION_CLIENT_ID` | from step 2 |
+| Secret | `NOTION_CLIENT_SECRET` | from step 2 |
+| Secret | `STATE_SECRET` | any long random string |
+| Text | `ALLOWED_UPNS` | comma-separated work emails allowed in |
 
-### Command line, if you prefer
+`ALLOWED_UPNS` lives only in the dashboard, never in `wrangler.toml` — it names
+real people, and `keep_vars` stops deploys from resetting it. **Until it is
+set, the worker refuses every request.**
 
-```bash
-cd worker && npm install
-npx wrangler secret put ANTHROPIC_API_KEY
-npx wrangler secret put NOTION_TOKEN
-npx wrangler deploy
-```
+**4. Point Plume at it.** In the Pages project, set `VITE_AGENT_URL` to the
+worker URL and redeploy — the value is baked in at build time.
 
-### Notion access
+**5. Connect.** Open Plume; a *Connect Notion* card appears. Each person
+connects their own account and picks their own pages.
 
-Skip OAuth. Create an **internal integration** at
-[notion.so/my-integrations](https://www.notion.so/my-integrations), copy the
-`ntn_…` token, and click **Connect** on the handful of top-level pages you want
-Plume to read. This gives sharper scoping than OAuth would, because Notion
-grants per page rather than per workspace.
+## Who sees what in Notion
 
-The integration only ever needs **read** capabilities. Nothing here writes.
+Each Plume user connects **their own** Notion account. Notion's consent screen
+only offers pages that person already has full access to, and the token can
+see only the ones they tick. Their Notion map is built from that token and
+cached under their own identity.
+
+So a teammate's Plume can never ground a draft in your board notes unless
+they could already open the board notes themselves. There is deliberately no
+shared workspace token: one would let everyone's triage read whatever it was
+connected to.
+
+Notion rotates refresh tokens on every refresh. When two requests race to
+refresh, the loser re-reads the stored connection and adopts the winner's
+token rather than logging the user out.
 
 ## How it authenticates you
 
@@ -80,9 +85,13 @@ five minutes.
 | --- | --- |
 | `POST /api/agent/triage` | Batch verdicts for up to 50 conversations. |
 | `POST /api/agent/deepen` | Agentic pass on one thread: reads Notion, returns a grounded draft. |
-| `GET /api/agent/atlas` | The cached Notion map. |
+| `GET /api/agent/atlas` | The caller's own cached Notion map. |
+| `GET /api/notion/status` | Whether the caller has connected Notion. Never returns tokens. |
+| `POST /api/notion/connect` | Signed consent URL for the caller. |
+| `GET /api/notion/callback` | Where Notion returns. Authenticated by the signed state, not a Microsoft token. |
+| `POST /api/notion/disconnect` | Forget the caller's Notion token and map. |
 | `POST /api/agent/atlas/refresh` | Rebuild it now. |
-| cron (optional) | Rebuilds it nightly once KV is bound. |
+| cron `0 5 * * *` | Rebuilds every connected user's map overnight. |
 
 ## The Notion Atlas
 

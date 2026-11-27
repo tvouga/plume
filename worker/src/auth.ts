@@ -31,7 +31,7 @@ export async function authenticate(req: Request, env: Env): Promise<Identity> {
   const me = (await res.json()) as { id: string; mail?: string; userPrincipalName: string }
   const upn = (me.mail || me.userPrincipalName || '').toLowerCase()
 
-  const allowed = env.ALLOWED_UPNS.split(',').map((s) => s.trim().toLowerCase()).filter(Boolean)
+  const allowed = (env.ALLOWED_UPNS ?? '').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean)
   if (allowed.length === 0) {
     throw new AuthError('Worker has no ALLOWED_UPNS configured — refusing to run open')
   }
