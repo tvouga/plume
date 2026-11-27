@@ -1,5 +1,10 @@
 export interface Env {
-  ATLAS: KVNamespace
+  /**
+   * Optional. Bind a KV namespace to keep the Notion Atlas warm between
+   * isolates and to make the nightly cron worth running. Without it the
+   * worker still works — it just rebuilds the map on a cold start.
+   */
+  ATLAS?: KVNamespace
   ANTHROPIC_API_KEY: string
   NOTION_TOKEN: string
   ALLOWED_UPNS: string

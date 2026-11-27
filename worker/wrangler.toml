@@ -3,22 +3,24 @@ main = "src/index.ts"
 compatibility_date = "2026-08-01"
 compatibility_flags = ["nodejs_compat"]
 
-# The Notion Atlas is a metadata-only map of the workspace. Rebuilt nightly,
-# read on every triage — exactly the shape KV is good at.
-[[kv_namespaces]]
-binding = "ATLAS"
-id = "REPLACE_WITH_YOUR_KV_ID"
+# Optional. The Notion Atlas is a metadata-only map of the workspace; without
+# KV the worker rebuilds it on a cold start, which is fine for one mailbox.
+# To make it persistent: create a KV namespace, then uncomment and paste its id.
+# [[kv_namespaces]]
+# binding = "ATLAS"
+# id = "<your-kv-namespace-id>"
 
-# Rebuild the Atlas each night, before anyone opens the app.
-[triggers]
-crons = ["0 5 * * *"]
+# The nightly rebuild only earns its keep once KV is bound — without it the
+# result has nowhere to live past the isolate. Uncomment alongside the binding.
+# [triggers]
+# crons = ["0 5 * * *"]
 
 [vars]
 # Comma-separated userPrincipalNames allowed to use this worker. Without this
 # the worker is an open proxy to your Anthropic key — do not leave it empty.
 ALLOWED_UPNS = ""
 # Origin allowed to call the worker, e.g. "http://localhost:5173".
-ALLOWED_ORIGIN = "http://localhost:5173"
+ALLOWED_ORIGIN = "https://plume-765.pages.dev"
 # Cost lever. Both default to Opus 5; set TRIAGE_MODEL="claude-haiku-4-5"
 # if you'd rather trade some accuracy on the cheap pass.
 TRIAGE_MODEL = "claude-opus-5"

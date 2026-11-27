@@ -22,26 +22,39 @@ message metadata needed for triage, and it talks to Notion and Anthropic.
 
 ## Setup
 
+No command line needed. In the Cloudflare dashboard:
+
+1. **Workers & Pages → Create → Worker → Connect to Git**, pick this repo and
+   set the **root directory** to `worker`. Deploy.
+2. **Settings → Variables and Secrets**, add:
+
+   | | name | value |
+   | --- | --- | --- |
+   | Secret | `ANTHROPIC_API_KEY` | your Anthropic key |
+   | Secret | `NOTION_TOKEN` | the `ntn_…` internal integration token |
+   | Text | `ALLOWED_UPNS` | your work email |
+   | Text | `ALLOWED_ORIGIN` | where Plume is served, e.g. `https://plume-765.pages.dev` |
+
+3. Copy the worker's URL into the Pages project as `VITE_AGENT_URL`, then
+   redeploy Pages so the new value is baked into the bundle.
+
+`ALLOWED_UPNS` is not optional — **the worker refuses to serve any request
+while it is empty**, because an unauthenticated proxy to your Anthropic key is
+a bill waiting to happen.
+
+KV is optional. Without it the worker rebuilds the Notion map on a cold start,
+which is fine for a single mailbox. To make it persistent, create a KV
+namespace and uncomment the `kv_namespaces` block (and the nightly cron
+alongside it) in `wrangler.toml` with its id.
+
+### Command line, if you prefer
+
 ```bash
-cd worker
-npm install
-npx wrangler kv namespace create ATLAS     # paste the id into wrangler.toml
+cd worker && npm install
 npx wrangler secret put ANTHROPIC_API_KEY
 npx wrangler secret put NOTION_TOKEN
-```
-
-Then edit `wrangler.toml`:
-
-- `ALLOWED_UPNS` — your work email. **The worker refuses to start work with
-  this empty**, because an unauthenticated proxy to your Anthropic key is a
-  bill waiting to happen.
-- `ALLOWED_ORIGIN` — where Plume is served from, e.g. `http://localhost:5173`.
-
-```bash
 npx wrangler deploy
 ```
-
-Put the deployed URL in the app's `.env` as `VITE_AGENT_URL`.
 
 ### Notion access
 
@@ -69,7 +82,7 @@ five minutes.
 | `POST /api/agent/deepen` | Agentic pass on one thread: reads Notion, returns a grounded draft. |
 | `GET /api/agent/atlas` | The cached Notion map. |
 | `POST /api/agent/atlas/refresh` | Rebuild it now. |
-| cron `0 5 * * *` | Rebuilds it nightly, before you open the app. |
+| cron (optional) | Rebuilds it nightly once KV is bound. |
 
 ## The Notion Atlas
 

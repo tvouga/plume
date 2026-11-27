@@ -141,18 +141,40 @@ export async function buildAtlas(env: Env): Promise<Atlas> {
 
 const ATLAS_KEY = 'atlas:v1'
 
+/**
+ * KV is optional, so that deploying the worker needs no committed config.
+ * Without it we keep the Atlas in the isolate, which Cloudflare reuses across
+ * requests — so in practice one crawl per cold start rather than one per call.
+ */
+let memo: Atlas | null = null
+
+function fresh(atlas: Atlas, maxAgeMs: number): boolean {
+  return Date.now() - new Date(atlas.fetchedAt).getTime() < maxAgeMs
+}
+
+async function store(env: Env, atlas: Atlas): Promise<void> {
+  memo = atlas
+  await env.ATLAS?.put(ATLAS_KEY, JSON.stringify(atlas))
+}
+
 export async function getAtlas(env: Env, maxAgeMs = 24 * 3_600_000): Promise<Atlas> {
-  const cached = await env.ATLAS.get<Atlas>(ATLAS_KEY, 'json')
-  if (cached && Date.now() - new Date(cached.fetchedAt).getTime() < maxAgeMs) return cached
-  const fresh = await buildAtlas(env)
-  await env.ATLAS.put(ATLAS_KEY, JSON.stringify(fresh))
-  return fresh
+  if (memo && fresh(memo, maxAgeMs)) return memo
+
+  const cached = env.ATLAS ? await env.ATLAS.get<Atlas>(ATLAS_KEY, 'json') : null
+  if (cached && fresh(cached, maxAgeMs)) {
+    memo = cached
+    return cached
+  }
+
+  const built = await buildAtlas(env)
+  await store(env, built)
+  return built
 }
 
 export async function refreshAtlas(env: Env): Promise<Atlas> {
-  const fresh = await buildAtlas(env)
-  await env.ATLAS.put(ATLAS_KEY, JSON.stringify(fresh))
-  return fresh
+  const built = await buildAtlas(env)
+  await store(env, built)
+  return built
 }
 
 /** Tool surface handed to the model during the deep pass. Read-only, by design. */
