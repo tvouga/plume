@@ -28,6 +28,7 @@ import { ThreadView } from './ThreadView'
 import { NewMessageModal } from './NewMessageModal'
 import { Brief } from './agent/Brief'
 import { Runway } from './agent/Runway'
+import { NotionMenuItem, NotionReturnToast } from './agent/shared'
 import type { ViewKey } from '../data/hooks'
 
 const VIEWS: { key: ViewKey; label: string; icon: typeof Inbox }[] = [
@@ -127,6 +128,7 @@ export function AppShell() {
           )}
         </div>
         {composing && <NewMessageModal onClose={() => setComposing(false)} />}
+        <NotionReturnToast />
       </div>
     )
   }
@@ -343,7 +345,8 @@ function ViewSwitcher({
       {menuOpen && (
         <>
           <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} />
-          <div className="absolute left-4 top-14 z-20 w-48 animate-pop-in rounded-xl bg-paper p-1 shadow-pop">
+          <div className="absolute left-4 top-14 z-20 w-56 animate-pop-in rounded-xl bg-paper p-1 shadow-pop">
+            <NotionMenuItem onDone={() => setMenuOpen(false)} />
             <button
               onClick={() => {
                 setMenuOpen(false)

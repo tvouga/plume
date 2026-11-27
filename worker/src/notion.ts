@@ -148,6 +148,27 @@ export async function getAtlas(env: Env, session: NotionSession, maxAgeMs = 24 *
   return built
 }
 
+/**
+ * For the request path. Returns whatever map is cached, even a stale one, and
+ * rebuilds in the background when it is missing or old. The first triage after
+ * connecting runs without Notion rather than waiting on a full crawl.
+ */
+export async function atlasNow(
+  env: Env,
+  session: NotionSession,
+  background: (p: Promise<unknown>) => void,
+  maxAgeMs = 24 * 3_600_000,
+): Promise<Atlas | null> {
+  const cached = memo.get(session.userId) ?? (await env.ATLAS.get<Atlas>(atlasKey(session.userId), 'json'))
+  if (cached) memo.set(session.userId, cached)
+  if (!cached || !fresh(cached, maxAgeMs)) {
+    background(
+      refreshAtlas(env, session).catch((e) => console.error(`[atlas] ${session.userId} rebuild failed`, e)),
+    )
+  }
+  return cached ?? null
+}
+
 export async function refreshAtlas(env: Env, session: NotionSession): Promise<Atlas> {
   const built = await buildAtlas(session)
   await store(env, session.userId, built)

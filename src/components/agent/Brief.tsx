@@ -2,10 +2,10 @@ import { useMemo } from 'react'
 import { AlertCircle, FileText, Inbox, Loader2, Sparkles } from 'lucide-react'
 import { useAgentFeed, useNow } from '../../agent/hooks'
 import { agentConfigured } from '../../agent/transport'
-import { byProject, handled, needsYou, waitingOn } from '../../agent/select'
+import { byProject, handled, needsYou, settled, waitingOn } from '../../agent/select'
 import type { Obligation } from '../../agent/types'
 import { ObligationCard } from './ObligationCard'
-import { NotionConnection, SectionHead, SetupHint } from './shared'
+import { SectionHead, SetupHint } from './shared'
 import { Avatar } from '../Avatar'
 import type { Conversation } from '../../graph/types'
 import { relativeTime } from '../../lib/format'
@@ -21,11 +21,11 @@ function greeting(d: Date): string {
  * a re-sorted inbox — the raw stream stays exactly where it was.
  */
 export function Brief({ onOpenThread }: { onOpenThread: (c: Conversation) => void }) {
-  const { data, isLoading, isFetching } = useAgentFeed()
+  const { data, isLoading, isFetching, triaging } = useAgentFeed()
   const now = useNow()
 
   const groups = useMemo(() => {
-    const all: Obligation[] = data ?? []
+    const all: Obligation[] = settled(data ?? [])
     return {
       needs: needsYou(all, now),
       waiting: waitingOn(all, now),
@@ -49,7 +49,7 @@ export function Brief({ onOpenThread }: { onOpenThread: (c: Conversation) => voi
       <header className="mb-7">
         <h1 className="flex items-center gap-2.5 text-2xl font-semibold tracking-tight text-ink">
           {greeting(now)}
-          {isFetching && <Loader2 className="h-4 w-4 animate-spin text-ink-faint" />}
+          {(isFetching || triaging > 0) && <Loader2 className="h-4 w-4 animate-spin text-ink-faint" />}
         </h1>
         <p className="mt-1.5 text-[14.5px] text-ink-muted">
           <b className="font-semibold text-ink">{groups.needs.length}</b> need you
@@ -57,11 +57,16 @@ export function Brief({ onOpenThread }: { onOpenThread: (c: Conversation) => voi
           <b className="font-semibold text-ink">{groups.waiting.length}</b> you&rsquo;re owed
           <span className="mx-1.5 text-ink-faint">·</span>
           {handledCount} handled without you
+          {triaging > 0 && (
+            <>
+              <span className="mx-1.5 text-ink-faint">·</span>
+              <span className="text-ink-faint">reading {triaging} more</span>
+            </>
+          )}
         </p>
       </header>
 
       {!agentConfigured && <SetupHint />}
-      <NotionConnection />
 
       {groups.needs.length > 0 && (
         <section className="mb-7">

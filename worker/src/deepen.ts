@@ -24,7 +24,7 @@ The draft is written in the reader's voice: plain, direct, no throat-clearing,
 no "I hope this finds you well". Short paragraphs. It will be shown to them for
 approval before anything is sent, so it should be ready to send as written.`
 
-const TOOLS: Anthropic.Tool[] = [
+const TOOLS: Anthropic.Beta.BetaTool[] = [
   {
     name: 'notion_search',
     description: 'Search the Notion workspace by keyword. Returns ids, titles and urls.',
@@ -33,7 +33,7 @@ const TOOLS: Anthropic.Tool[] = [
       additionalProperties: false,
       required: ['query'],
       properties: { query: { type: 'string' } },
-    } as unknown as Anthropic.Tool.InputSchema,
+    } as unknown as Anthropic.Beta.BetaTool.InputSchema,
   },
   {
     name: 'notion_fetch',
@@ -43,7 +43,7 @@ const TOOLS: Anthropic.Tool[] = [
       additionalProperties: false,
       required: ['pageId'],
       properties: { pageId: { type: 'string' } },
-    } as unknown as Anthropic.Tool.InputSchema,
+    } as unknown as Anthropic.Beta.BetaTool.InputSchema,
   },
   {
     name: 'record_result',
@@ -72,7 +72,7 @@ const TOOLS: Anthropic.Tool[] = [
         },
         gaps: { type: ['string', 'null'], description: 'Facts you needed and could not find.' },
       },
-    } as unknown as Anthropic.Tool.InputSchema,
+    } as unknown as Anthropic.Beta.BetaTool.InputSchema,
   },
 ]
 
@@ -100,7 +100,7 @@ export async function deepen(
     .map((m) => `[${m.sentAt}] ${m.fromMe ? `${input.myName} (the reader)` : m.from}:\n${m.text.slice(0, 4000)}`)
     .join('\n\n---\n\n')
 
-  const messages: Anthropic.MessageParam[] = [
+  const messages: Anthropic.Beta.BetaMessageParam[] = [
     {
       role: 'user',
       content:
@@ -110,9 +110,11 @@ export async function deepen(
   ]
 
   for (let turn = 0; turn < 6; turn++) {
-    const res: Anthropic.Message = await client.messages.create({
-      model: env.DEEPEN_MODEL || 'claude-opus-5',
+    const res: Anthropic.Beta.BetaMessage = await client.beta.messages.create({
+      model: env.DEEPEN_MODEL || 'claude-opus-5-5',
       max_tokens: 16000,
+      betas: ['server-side-fallback-2026-07-01'],
+      fallbacks: 'default',
       system: SYSTEM,
       tools: TOOLS,
       messages,
@@ -150,7 +152,7 @@ export async function deepen(
     messages.push({ role: 'assistant', content: res.content })
 
     // Every tool_result for a turn goes back in ONE user message.
-    const results: Anthropic.ToolResultBlockParam[] = []
+    const results: Anthropic.Beta.BetaToolResultBlockParam[] = []
     for (const block of res.content) {
       if (block.type !== 'tool_use') continue
       try {

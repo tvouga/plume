@@ -33,6 +33,9 @@ export interface DeepenInput {
   myEmail: string
 }
 
+/** Generous: a batch of a dozen conversations normally answers in well under a minute. */
+const TIMEOUT_MS = 150_000
+
 const BASE = (import.meta.env.VITE_AGENT_URL as string | undefined)?.replace(/\/$/, '')
 
 class WorkerTransport implements AgentTransport {
@@ -47,6 +50,9 @@ class WorkerTransport implements AgentTransport {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify(body),
+      // A model call that hangs must give up eventually, or the conversations
+      // it carries stay marked in-flight and are never retried.
+      signal: AbortSignal.timeout(TIMEOUT_MS),
     })
     if (!res.ok) {
       const detail = await res.text().catch(() => res.statusText)

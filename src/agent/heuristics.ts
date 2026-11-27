@@ -123,15 +123,21 @@ export function heuristicTriage(input: TriageInput, now = new Date()): LedgerRec
   const importance = Math.max(0, Math.min(100, score))
   const overdue = dueAt ? new Date(dueAt).getTime() - now.getTime() < 4 * 3_600_000 : false
 
+  // Rules can't tell a cold pitch from a colleague. The one signal they can
+  // trust: you're already in the conversation, or you flagged it yourself.
+  // First contact is never promoted — that's the model's job, not a regex's.
+  const engaged = input.flagged || input.threadCount > 1
   const category: LedgerRecord['category'] = noise
     ? 'noise'
     : input.lastFromMe
       ? 'fyi'
-      : asks || dueAt
-        ? 'action'
-        : importance >= 45
-          ? 'reply'
-          : 'fyi'
+      : !engaged
+        ? 'fyi'
+        : asks || dueAt
+          ? 'action'
+          : importance >= 45
+            ? 'reply'
+            : 'fyi'
 
   return {
     v: 1,

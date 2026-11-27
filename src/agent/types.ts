@@ -124,6 +124,8 @@ export interface Obligation {
   /** The raw rolled-up conversation, so a card can hand it to ThreadView. */
   conversation: Conversation
   conversationId: string
+  /** The verdict shown is a stopgap and a model verdict is on its way. */
+  pending?: boolean
   messageId: string
   record: LedgerRecord
   subject: string

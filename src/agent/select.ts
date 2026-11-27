@@ -1,5 +1,15 @@
 import type { CalendarEvent, Commitment, Obligation } from './types'
 
+/**
+ * Only verdicts that are final. While a model verdict is on its way, the
+ * stopgap guess is never allowed to claim a place on a surface — rules can't
+ * tell a cold sales pitch from a colleague's question, and the Brief's only
+ * value is that what it shows is worth your time.
+ */
+export function settled(obligations: Obligation[]): Obligation[] {
+  return obligations.filter((o) => !o.pending)
+}
+
 /** Snoozed until later, or explicitly dismissed — invisible on every surface. */
 export function isHidden(o: Obligation, now: Date): boolean {
   if (o.record.dismissed) return true

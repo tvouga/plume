@@ -1,6 +1,6 @@
 import { AuthError, authenticate } from './auth'
 import { cors, json, type Env } from './env'
-import { forgetAtlas, getAtlas, refreshAtlas } from './notion'
+import { atlasNow, forgetAtlas, getAtlas, refreshAtlas } from './notion'
 import {
   completeConnect,
   connectUrl,
@@ -85,15 +85,19 @@ export default {
       if (url.pathname === '/api/agent/triage' && req.method === 'POST') {
         const { inputs } = (await req.json()) as { inputs: TriageInput[] }
         if (!Array.isArray(inputs) || inputs.length === 0) return json([], env)
-        // Notion trouble must never take triage down — mail without Notion
-        // context is still far better than no brief at all.
-        const atlas = session ? await getAtlas(env, session).catch(() => null) : null
-        return json(await triage(env, inputs.slice(0, 50), atlas, identity.upn), env)
+        // Notion must never hold triage up: use whatever map is cached and
+        // rebuild it in the background. Mail without Notion context beats waiting.
+        const atlas = session
+          ? await atlasNow(env, session, (p) => ctx.waitUntil(p)).catch(() => null)
+          : null
+        return json(await triageOnce(env, identity.id, inputs.slice(0, 50), atlas, identity.upn), env)
       }
 
       if (url.pathname === '/api/agent/deepen' && req.method === 'POST') {
         const input = (await req.json()) as DeepenInput
-        const atlas = session ? await getAtlas(env, session).catch(() => null) : null
+        const atlas = session
+          ? await atlasNow(env, session, (p) => ctx.waitUntil(p)).catch(() => null)
+          : null
         return json(await deepen(env, input, atlas, session), env)
       }
 
@@ -129,6 +133,33 @@ export default {
       })(),
     )
   },
+}
+
+/**
+ * Each verdict is paid for once. A conversation's hash only changes when the
+ * thread does, so a reload, a second device or a retried batch gets the
+ * stored verdict back instead of another model call.
+ */
+const VERDICT_TTL_S = 14 * 24 * 3600
+
+async function triageOnce(
+  env: Env,
+  userId: string,
+  inputs: TriageInput[],
+  atlas: Parameters<typeof triage>[2],
+  upn: string,
+): Promise<unknown[]> {
+  const key = (i: TriageInput) => `verdict:${userId}:${i.hash}`
+  const cached = await Promise.all(inputs.map((i) => env.ATLAS.get(key(i), 'json')))
+  const misses = inputs.filter((_, k) => cached[k] === null)
+  const fresh = misses.length ? await triage(env, misses, atlas, upn) : []
+  await Promise.all(
+    misses.map((i, k) =>
+      fresh[k] ? env.ATLAS.put(key(i), JSON.stringify(fresh[k]), { expirationTtl: VERDICT_TTL_S }) : null,
+    ),
+  )
+  let m = 0
+  return inputs.map((_, k) => cached[k] ?? fresh[m++])
 }
 
 /** What the browser may know about a connection — never the tokens. */

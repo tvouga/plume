@@ -2,10 +2,10 @@ import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { CalendarX2, Loader2 } from 'lucide-react'
 import { useAgentFeed, useDayEvents, useNow } from '../../agent/hooks'
 import { agentConfigured } from '../../agent/transport'
-import { gatingEvent, isHidden, needsYou, packLanes, waitingOn } from '../../agent/select'
+import { gatingEvent, isHidden, needsYou, packLanes, settled, waitingOn } from '../../agent/select'
 import type { CalendarEvent, Obligation } from '../../agent/types'
 import { ObligationCard } from './ObligationCard'
-import { NotionConnection, SetupHint } from './shared'
+import { SetupHint } from './shared'
 import type { Conversation } from '../../graph/types'
 
 const CARD_W = 210
@@ -75,7 +75,7 @@ export function Runway({ onOpenThread }: { onOpenThread: (c: Conversation) => vo
   )
 
   const buckets = useMemo(() => {
-    const all: Obligation[] = (data ?? []).filter((o) => !isHidden(o, now))
+    const all: Obligation[] = settled(data ?? []).filter((o) => !isHidden(o, now))
     const live = needsYou(all, now)
     const overdue: Obligation[] = []
     const today: Obligation[] = []
@@ -164,8 +164,7 @@ export function Runway({ onOpenThread }: { onOpenThread: (c: Conversation) => vo
       <div className="min-h-0 flex-1 overflow-auto">
         <div className="px-6 pt-5 empty:hidden">
           {!agentConfigured && <SetupHint />}
-          <NotionConnection />
-        </div>
+            </div>
         {noCalendar && (
           <div className="mx-6 mt-5 flex items-center gap-2 rounded-xl border border-stake-high-line bg-stake-high-soft px-4 py-2.5 text-[13px] text-stake-high">
             <CalendarX2 className="h-4 w-4 shrink-0" />
